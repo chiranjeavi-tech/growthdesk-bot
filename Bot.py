@@ -7,8 +7,8 @@ from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, Callb
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "9120888974:AAE3VCcdJXeyZghrxC9ed5EX2JKeew17m3M")
 
 CHANNELS = [
-   (-1003941578746, "https://t.me/+Sg-HX3SVwnQyZjFl", "📢 Join Channel 1"),
-  (-1002735833404, "https://t.me/+xbkyXV8t-0llN2E9", "📢 Join Channel 2"),
+   (-1003941578746, "https://t.me/+Sg-HX3SVwnQyZjFl", "📢 MIAN CHANNEL 💸 1"),
+  (-1002735833404, "https://t.me/+xbkyXV8t-0llN2E9", "📢 BACK-UP CHANNEL 💸 2"),
 ]
 
 class HealthHandler(BaseHTTPRequestHandler):
