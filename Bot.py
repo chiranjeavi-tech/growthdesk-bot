@@ -19,7 +19,7 @@ CHANNELS = [
     (-1002735833404, "https://t.me/+xbkyXV8t-0llN2E9", "📢 BACK-UP CHANNEL 💸💸"),
 ]
 
-# Daily 3 times (IST): 10:00 AM, 05:35 PM, 09:00 PM
+# Daily 3 times (IST): 10:00 AM, 06:00PM, 09:00 PM
 AUTO_POST_TIMES = [
     datetime.time(hour=10, minute=0, tzinfo=IST),
     datetime.time(hour=17, minute=5, tzinfo=IST),
