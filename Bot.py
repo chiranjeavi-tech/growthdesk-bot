@@ -19,10 +19,10 @@ CHANNELS = [
     (-1002735833404, "https://t.me/+xbkyXV8t-0llN2E9", "📢 BACK-UP CHANNEL 💸💸"),
 ]
 
-# Daily 3 times (IST): 10:00 AM, 05:00 PM, 09:00 PM
+# Daily 3 times (IST): 10:00 AM, 05:05 PM, 09:00 PM
 AUTO_POST_TIMES = [
     datetime.time(hour=10, minute=0, tzinfo=IST),
-    datetime.time(hour=17, minute=0, tzinfo=IST),
+    datetime.time(hour=17, minute=5, tzinfo=IST),
     datetime.time(hour=21, minute=0, tzinfo=IST),
 ]
 
@@ -34,8 +34,9 @@ PROMO_POSTS = [
         "▪️ Play Store Redeem Code Drops & Rewards\n"
         "▪️ Telegram Premium Offers, Drops & Alerts\n"
         "▪️ Instant Access & Daily Fresh Updates\n\n"
-        "🚀 *Start Bot Now 👇*\n"
-        "https://t.me/Unlimitedwalebot\n\n"
+        "🚀 *Start Bot Now 👇*\n\n"
+        "@GROWTHDESK4BOT\n"
+        "@GROWTHDESK4BOT\n\n"
         "📈 Add Your Channel In Our Bot\n"
         "📩 *DM TO ADD : @ChiranjeeviTrader4*"
     ),
@@ -294,4 +295,4 @@ if __name__ == "__main__":
     schedule_promo_jobs(app)
     print("Bot polling started...", flush=True)
     app.run_polling(drop_pending_updates=True)
-            
+    
