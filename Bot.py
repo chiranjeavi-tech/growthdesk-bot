@@ -2,6 +2,8 @@ import datetime
 import os
 import re
 import threading
+import time
+import urllib.request
 from zoneinfo import ZoneInfo
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
@@ -67,10 +69,22 @@ class HealthHandler(BaseHTTPRequestHandler):
         return
 
 
+def _keep_alive_loop():
+    ping_url = os.environ.get("RENDER_EXTERNAL_URL", "https://growthdesk-bot.onrender.com")
+    while True:
+        time.sleep(300)
+        try:
+            with urllib.request.urlopen(ping_url, timeout=15):
+                pass
+        except Exception:
+            pass
+
+
 def start_health_server():
     port = int(os.environ.get("PORT", "10000"))
     server = HTTPServer(("0.0.0.0", port), HealthHandler)
     threading.Thread(target=server.serve_forever, daemon=True).start()
+    threading.Thread(target=_keep_alive_loop, daemon=True).start()
 
 
 def get_folder_channels(folder_key: str) -> list:
