@@ -1,5 +1,8 @@
+import datetime
 import os
+import re
 import threading
+from zoneinfo import ZoneInfo
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, CallbackQueryHandler
@@ -8,11 +11,34 @@ BOT_TOKEN = os.environ.get("BOT_TOKEN", "8125086974:AAE3VCoDJkeyZghr4xChed5EX2JK
 
 MAX_CHANNELS_PER_FOLDER = 100
 CHANNELS_PER_PAGE = 10
+IST = ZoneInfo("Asia/Kolkata")
 
 # Nee main & backup channels (alane unchamu)
 CHANNELS = [
     (-1003941578746, "https://t.me/+Sg-HX3SVwnQyZjFl", "📢 MAIN CHANNEL 💸💸"),
     (-1002735833404, "https://t.me/+xbkyXV8t-0llN2E9", "📢 BACK-UP CHANNEL 💸💸"),
+]
+
+# Daily 3 times (IST): 10:00 AM, 05:00 PM, 09:00 PM
+AUTO_POST_TIMES = [
+    datetime.time(hour=10, minute=0, tzinfo=IST),
+    datetime.time(hour=17, minute=0, tzinfo=IST),
+    datetime.time(hour=21, minute=0, tzinfo=IST),
+]
+
+PROMO_POSTS = [
+    (
+        "🔥 *REDEEM CODES & TELEGRAM PREMIUM HUB* 🔥\n"
+        "⌛️ *LIMITED TIME ACCESS!*\n\n"
+        "*What You'll Get:*\n"
+        "▪️ Play Store Redeem Code Drops & Rewards\n"
+        "▪️ Telegram Premium Offers, Drops & Alerts\n"
+        "▪️ Instant Access & Daily Fresh Updates\n\n"
+        "🚀 *Start Bot Now 👇*\n"
+        "https://t.me/Unlimitedwalebot\n\n"
+        "📈 Add Your Channel In Our Bot\n"
+        "📩 *DM TO ADD : @ChiranjeeviTrader4*"
+    ),
 ]
 
 # 10 Folders (Prathi folder lo up to 100 channels pettukovachu)
@@ -50,6 +76,40 @@ def get_folder_channels(folder_key: str) -> list:
     folder_data = FOLDERS.get(folder_key, {})
     channels = folder_data.get("channels", [])
     return channels[:MAX_CHANNELS_PER_FOLDER]
+
+
+def extract_postable_target(value):
+    if isinstance(value, int):
+        return value
+    s = str(value).strip()
+    if re.fullmatch(r"-?\d+", s):
+        return int(s)
+    if s.startswith("@"):
+        return s
+    match = re.match(r"^https?://t\.me/([A-Za-z0-9_]+)/?$", s)
+    if match and not match.group(1).startswith("+"):
+        return f"@{match.group(1)}"
+    return None
+
+
+def get_all_target_chats() -> list:
+    targets = []
+    seen = set()
+
+    for ch_id, ch_url, _ in CHANNELS:
+        t = extract_postable_target(ch_id) or extract_postable_target(ch_url)
+        if t is not None and t not in seen:
+            seen.add(t)
+            targets.append(t)
+
+    for folder_key in FOLDERS:
+        for _, ch_url in get_folder_channels(folder_key):
+            t = extract_postable_target(ch_url)
+            if t is not None and t not in seen:
+                seen.add(t)
+                targets.append(t)
+
+    return targets
 
 
 async def get_missing_channels(context: ContextTypes.DEFAULT_TYPE, user_id: int):
@@ -111,6 +171,26 @@ def build_folder_keyboard(folder_key: str, page: int = 0):
 
     keyboard.append([InlineKeyboardButton("⬅️ Back to Main", callback_data="back_main")])
     return InlineKeyboardMarkup(keyboard)
+
+
+async def send_scheduled_promo(context: ContextTypes.DEFAULT_TYPE):
+    if not PROMO_POSTS:
+        return
+
+    slot_index = context.job.data if (context.job and isinstance(context.job.data, int)) else 0
+    post_text = PROMO_POSTS[slot_index % len(PROMO_POSTS)]
+    targets = get_all_target_chats()
+
+    for chat_target in targets:
+        try:
+            await context.bot.send_message(
+                chat_id=chat_target,
+                text=post_text,
+                parse_mode="Markdown",
+            )
+            print(f"Auto-posted promo slot {slot_index} to {chat_target}", flush=True)
+        except Exception as e:
+            print(f"Failed auto-post to {chat_target}: {e}", flush=True)
 
 
 async def show_gate(update: Update, context: ContextTypes.DEFAULT_TYPE, missing: list, edit: bool = False):
@@ -185,6 +265,21 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await show_gate(update, context, missing, edit=True)
 
 
+def schedule_promo_jobs(app):
+    if app.job_queue is None:
+        print("Warning: job_queue is None. Install python-telegram-bot[job-queue] for auto-posts.", flush=True)
+        return
+
+    for idx, post_time in enumerate(AUTO_POST_TIMES):
+        app.job_queue.run_daily(
+            send_scheduled_promo,
+            time=post_time,
+            data=idx,
+            name=f"promo_job_{idx}",
+        )
+        print(f"Scheduled promo job #{idx + 1} at {post_time}", flush=True)
+
+
 if __name__ == "__main__":
     start_health_server()
     app = (
@@ -196,6 +291,7 @@ if __name__ == "__main__":
     )
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CallbackQueryHandler(button_handler))
+    schedule_promo_jobs(app)
     print("Bot polling started...", flush=True)
     app.run_polling(drop_pending_updates=True)
-   
+            
