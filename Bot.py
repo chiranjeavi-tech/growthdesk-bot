@@ -17,8 +17,8 @@ IST = ZoneInfo("Asia/Kolkata")
 
 # Nee main & backup channels (alane unchamu)
 CHANNELS = [
-    (-1003941578746, "https://t.me/+Sg-HX3SVwnQyZjFl", "📢 MAIN CHANNEL 💸💸"),
-    (-1002735833404, "https://t.me/+xbkyXV8t-0llN2E9", "📢 BACK-UP CHANNEL 💸💸"),
+    (-1003941578746, "https://t.me/+L_jUVKFNZp5mOGJl", "📢 MAIN CHANNEL 💸💸"),
+    (-1002735833404, "https://t.me/+6g8Hcs_EYOhlODM1", "📢 BACK-UP CHANNEL 💸💸"),
 ]
 
 # Daily 3 times (IST): 10:00 AM, 06:05PM, 09:00 PM
