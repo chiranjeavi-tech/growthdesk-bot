@@ -37,9 +37,10 @@ CHANNELS = [
 FOLDER_3_LINK = "https://t.me/addlist/-Qq__yiQlZQzODZl"
 FOLDER_4_LINK = "https://t.me/addlist/UNOERSRR-Zs0Njk1"
 
-# Daily 3 times (IST): 10:00 AM, 05:05 PM, 09:00 PM
+# Daily 4 times (IST): 10:00 AM, 01:00 PM, 05:05 PM, 09:00 PM
 AUTO_POST_TIMES = [
     datetime.time(hour=10, minute=0, tzinfo=IST),
+    datetime.time(hour=13, minute=0, tzinfo=IST),
     datetime.time(hour=17, minute=5, tzinfo=IST),
     datetime.time(hour=21, minute=0, tzinfo=IST),
 ]
@@ -323,14 +324,24 @@ async def send_scheduled_promo(context: ContextTypes.DEFAULT_TYPE):
 
     for chat_target in targets:
         try:
-            await context.bot.send_message(
+            await context.bot.send_photo(
                 chat_id=chat_target,
-                text=post_text,
+                photo=REDEEM_PHOTO_URL,
+                caption=post_text,
                 parse_mode="Markdown",
             )
-            print(f"Auto-posted promo slot {slot_index} to {chat_target}", flush=True)
+            print(f"Auto-posted promo photo slot {slot_index} to {chat_target}", flush=True)
         except Exception as e:
-            print(f"Failed auto-post to {chat_target}: {e}", flush=True)
+            print(f"Promo photo failed for {chat_target}, sending text fallback: {e}", flush=True)
+            try:
+                await context.bot.send_message(
+                    chat_id=chat_target,
+                    text=post_text,
+                    parse_mode="Markdown",
+                )
+                print(f"Auto-posted promo text slot {slot_index} to {chat_target}", flush=True)
+            except Exception as inner_e:
+                print(f"Failed auto-post to {chat_target}: {inner_e}", flush=True)
 
 
 async def show_gate(update: Update, context: ContextTypes.DEFAULT_TYPE, missing: list, edit: bool = False):
@@ -567,4 +578,4 @@ if __name__ == "__main__":
     schedule_promo_jobs(app)
     print("Bot polling started...", flush=True)
     app.run_polling(drop_pending_updates=True)
-    
+        
