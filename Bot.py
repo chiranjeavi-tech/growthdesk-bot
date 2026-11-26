@@ -8,11 +8,18 @@ import urllib.request
 from zoneinfo import ZoneInfo
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.error import Conflict
 from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, CallbackQueryHandler
 
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "8125086974:AAE3VCoDJkeyZghr4xChed5EX2JKeex17n1M")
 
 ADMIN_USERNAMES = {"chiranjeevitraders4", "chiranjeavitraders4"}
+ADMIN_USER_IDS = {
+    int(x.strip())
+    for x in os.environ.get("ADMIN_USER_IDS", "").split(",")
+    if x.strip().isdigit()
+}
+
 MAX_CHANNELS_PER_FOLDER = 100
 CHANNELS_PER_PAGE = 10
 MAX_REDEEM_CAP = 25
@@ -80,9 +87,13 @@ FOLDERS["folder_1"]["channels"].extend([
 
 def is_admin_user(update: Update) -> bool:
     user = update.effective_user
-    if not user or not user.username:
+    if not user:
         return False
-    return user.username.strip().lower() in ADMIN_USERNAMES
+    if user.id in ADMIN_USER_IDS:
+        return True
+    if user.username and user.username.strip().lower() in ADMIN_USERNAMES:
+        return True
+    return False
 
 
 def _load_wallets() -> dict:
@@ -231,11 +242,9 @@ def build_two_folders_keyboard():
 def build_main_keyboard(missing: list):
     keyboard = []
 
-    # 1st & 2nd: Main & Back-up channels
     for url, label in missing:
         keyboard.append([InlineKeyboardButton(label, url=url)])
 
-    # 3rd & 4th: Direct single-click folder links (up to 100 channels each)
     folder_row = []
     if FOLDER_3_LINK:
         folder_row.append(InlineKeyboardButton("➕ Join", url=FOLDER_3_LINK))
@@ -450,7 +459,10 @@ async def go_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
     chat_id = update.effective_chat.id
+    print(f"/stats called by user_id={getattr(user, 'id', None)}, username={getattr(user, 'username', None)}", flush=True)
+
     if not is_admin_user(update):
         await context.bot.send_message(
             chat_id=chat_id,
@@ -474,6 +486,7 @@ async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def reaction_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    print(f"/reaction called by user_id={getattr(update.effective_user, 'id', None)}", flush=True)
     await context.bot.send_message(
         chat_id=update.effective_chat.id,
         text=(
@@ -485,6 +498,7 @@ async def reaction_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def use_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    print(f"/use called by user_id={getattr(update.effective_user, 'id', None)}", flush=True)
     await context.bot.send_message(
         chat_id=update.effective_chat.id,
         text=(
@@ -565,22 +579,4 @@ async def folders_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    data = query.data or ""
-    user_id = query.from_user.id
-    wallet = get_user_wallet(user_id)
-    ref_link = f"https://t.me/GROWTHDESK4BOT?start={user_id}"
-
-    if data == "noop":
-        await query.answer()
-        return
-
-    if data == "verify_join":
-        await check_and_unlock(update, context, from_verify_button=True)
-        return
-
-    await query.answer()
-
-    if data == "sec_redeem":
-        await send_redeem_with_photo(
-           
+    
