@@ -14,9 +14,9 @@ BOT_TOKEN = os.environ.get("BOT_TOKEN", "8125086974:AAE3VCoDJkeyZghr4xChed5EX2JK
 MAX_CHANNELS_PER_FOLDER = 100
 CHANNELS_PER_PAGE = 10
 MAX_REDEEM_CAP = 25
-PER_REFERRAL_AMOUNT = "0.30"
-BONUS_AMOUNT = "0.10"
-NEW_USER_BONUS_AMOUNT = "0.10"
+PER_REFERRAL_AMOUNT = 0.30
+BONUS_AMOUNT = 0.10
+NEW_USER_BONUS_AMOUNT = 0.10
 REDEEM_SLABS = [
     (10, 10),
     (15, 15),
@@ -72,6 +72,25 @@ FOLDERS = {
 FOLDERS["folder_1"]["channels"].extend([
     ("📢 New Channel 1", "https://t.me/+26Fs7pXdGPoxZmI1"),
 ])
+
+# In-memory user wallet & referral store
+USER_WALLETS = {}
+
+
+def get_user_wallet(user_id: int) -> dict:
+    if user_id not in USER_WALLETS:
+        USER_WALLETS[user_id] = {
+            "balance": 0.0,
+            "referrals": 0,
+            "referred_by": None,
+            "claimed_newcomer": False,
+            "claimed_bonus": False,
+        }
+    return USER_WALLETS[user_id]
+
+
+def format_amount(amount: float) -> str:
+    return f"{amount:.2f}"
 
 
 class HealthHandler(BaseHTTPRequestHandler):
@@ -216,11 +235,11 @@ def build_unlocked_keyboard():
     return InlineKeyboardMarkup([
         [
             InlineKeyboardButton(f"🎟 Redeem (Max ₹{MAX_REDEEM_CAP})", callback_data="sec_redeem"),
-            InlineKeyboardButton(f"🔗 Referral ({PER_REFERRAL_AMOUNT})", callback_data="sec_referral"),
+            InlineKeyboardButton(f"🔗 Referral ({format_amount(PER_REFERRAL_AMOUNT)})", callback_data="sec_referral"),
         ],
         [
-            InlineKeyboardButton(f"🎁 Bonus ({BONUS_AMOUNT})", callback_data="sec_bonus"),
-            InlineKeyboardButton(f"🆕 New User Bonus ({NEW_USER_BONUS_AMOUNT})", callback_data="sec_newcomer"),
+            InlineKeyboardButton(f"🎁 Bonus ({format_amount(BONUS_AMOUNT)})", callback_data="sec_bonus"),
+            InlineKeyboardButton(f"🆕 New User Bonus ({format_amount(NEW_USER_BONUS_AMOUNT)})", callback_data="sec_newcomer"),
         ],
     ])
 
@@ -229,13 +248,30 @@ def format_redeem_slabs() -> str:
     return " | ".join(f"{refs} Refs = ₹{code_rs}" for refs, code_rs in REDEEM_SLABS)
 
 
-async def send_redeem_with_photo(chat_id: int, context: ContextTypes.DEFAULT_TYPE, edit_query=None):
+def apply_referral_if_valid(user_id: int, args: list):
+    if not args:
+        return
+    raw_ref = args[0].strip()
+    if not re.fullmatch(r"\d+", raw_ref):
+        return
+    referrer_id = int(raw_ref)
+    if referrer_id == user_id:
+        return
+    wallet = get_user_wallet(user_id)
+    if wallet["referred_by"] is None:
+        wallet["referred_by"] = referrer_id
+        ref_wallet = get_user_wallet(referrer_id)
+        ref_wallet["referrals"] += 1
+        ref_wallet["balance"] = round(ref_wallet["balance"] + PER_REFERRAL_AMOUNT, 2)
+
+
+async def send_redeem_with_photo(chat_id: int, user_id: int, context: ContextTypes.DEFAULT_TYPE, edit_query=None):
+    wallet = get_user_wallet(user_id)
     slabs_text = format_redeem_slabs()
     caption_text = (
-        f"🎟 *Redeem Codes:* {slabs_text}\n"
-        f"🔗 *Per Referral:* {PER_REFERRAL_AMOUNT}\n"
-        f"🎁 *Bonus:* {BONUS_AMOUNT}\n"
-        f"🆕 *New User Bonus:* {NEW_USER_BONUS_AMOUNT}"
+        f"💰 *Wallet Balance:* {format_amount(wallet['balance'])}\n"
+        f"👥 *Referrals:* {wallet['referrals']}\n"
+        f"🎟 *Redeem Codes:* {slabs_text}"
     )
     try:
         await context.bot.send_photo(
@@ -262,14 +298,11 @@ async def send_redeem_with_photo(chat_id: int, context: ContextTypes.DEFAULT_TYP
             )
 
 
-async def send_unlocked_hub(chat_id: int, context: ContextTypes.DEFAULT_TYPE):
-    slabs_text = format_redeem_slabs()
+async def send_unlocked_hub(chat_id: int, user_id: int, context: ContextTypes.DEFAULT_TYPE):
+    wallet = get_user_wallet(user_id)
     text = (
         "🎉 *Verified! Growth Desk access unlocked.*\n\n"
-        f"🎟 *Redeem Codes:* {slabs_text}\n"
-        f"🔗 *Per Referral:* {PER_REFERRAL_AMOUNT}\n"
-        f"🎁 *Bonus:* {BONUS_AMOUNT}\n"
-        f"🆕 *New User Bonus:* {NEW_USER_BONUS_AMOUNT}\n\n"
+        f"💰 *Wallet Balance:* {format_amount(wallet['balance'])}\n\n"
         "Tap a button below to view details 👇"
     )
     await context.bot.send_message(
@@ -330,12 +363,14 @@ async def check_and_unlock(update: Update, context: ContextTypes.DEFAULT_TYPE):
     missing = await get_missing_channels(context, user_id)
 
     if not missing:
-        await send_unlocked_hub(chat_id=chat_id, context=context)
+        await send_unlocked_hub(chat_id=chat_id, user_id=user_id, context=context)
     else:
         await show_gate(update, context, missing, edit=False)
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    apply_referral_if_valid(user_id, context.args or [])
     await check_and_unlock(update, context)
 
 
@@ -347,7 +382,7 @@ async def go_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await show_gate(update, context, missing, edit=False)
         return
 
-    await send_redeem_with_photo(chat_id=chat_id, context=context)
+    await send_redeem_with_photo(chat_id=chat_id, user_id=user_id, context=context)
 
 
 async def hub_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -357,7 +392,7 @@ async def hub_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if missing:
         await show_gate(update, context, missing, edit=False)
         return
-    await send_unlocked_hub(chat_id=chat_id, context=context)
+    await send_unlocked_hub(chat_id=chat_id, user_id=user_id, context=context)
 
 
 async def newcomer_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -368,12 +403,17 @@ async def newcomer_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await show_gate(update, context, missing, edit=False)
         return
 
+    wallet = get_user_wallet(user_id)
+    if not wallet["claimed_newcomer"]:
+        wallet["claimed_newcomer"] = True
+        wallet["balance"] = round(wallet["balance"] + NEW_USER_BONUS_AMOUNT, 2)
+
     await context.bot.send_message(
         chat_id=chat_id,
         text=(
             "🆕 *New User Bonus*\n"
-            f"Welcome bonus: *{NEW_USER_BONUS_AMOUNT}*\n"
-            f"🎟 Redeem codes: {format_redeem_slabs()}"
+            f"Bonus Amount: *{format_amount(NEW_USER_BONUS_AMOUNT)}*\n"
+            f"💰 *Wallet Balance:* *{format_amount(wallet['balance'])}*"
         ),
         reply_markup=build_unlocked_keyboard(),
         parse_mode="Markdown",
@@ -388,7 +428,7 @@ async def redeem_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await show_gate(update, context, missing, edit=False)
         return
 
-    await send_redeem_with_photo(chat_id=chat_id, context=context)
+    await send_redeem_with_photo(chat_id=chat_id, user_id=user_id, context=context)
 
 
 async def folders_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -417,6 +457,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     data = query.data or ""
     user_id = query.from_user.id
+    wallet = get_user_wallet(user_id)
     ref_link = f"https://t.me/GROWTHDESK4BOT?start={user_id}"
 
     if data == "noop":
@@ -428,6 +469,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == "sec_redeem":
         await send_redeem_with_photo(
             chat_id=query.message.chat_id,
+            user_id=user_id,
             context=context,
             edit_query=query,
         )
@@ -436,8 +478,9 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text(
             text=(
                 "🔗 *Referral*\n"
-                f"Per Referral: *{PER_REFERRAL_AMOUNT}*\n"
-                f"Milestones: *{format_redeem_slabs()}*\n"
+                f"Per Referral: *{format_amount(PER_REFERRAL_AMOUNT)}*\n"
+                f"Your Referrals: *{wallet['referrals']}*\n"
+                f"Redeem Slabs: *{format_redeem_slabs()}*\n"
                 f"Your Referral Link: `{ref_link}`"
             ),
             reply_markup=build_unlocked_keyboard(),
@@ -445,20 +488,28 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
     elif data == "sec_bonus":
+        if not wallet["claimed_bonus"]:
+            wallet["claimed_bonus"] = True
+            wallet["balance"] = round(wallet["balance"] + BONUS_AMOUNT, 2)
         await query.edit_message_text(
             text=(
                 "🎁 *Bonus*\n"
-                f"Active bonus: *{BONUS_AMOUNT}*"
+                f"Bonus Amount: *{format_amount(BONUS_AMOUNT)}*\n"
+                f"💰 *Wallet Balance:* *{format_amount(wallet['balance'])}*"
             ),
             reply_markup=build_unlocked_keyboard(),
             parse_mode="Markdown",
         )
 
     elif data == "sec_newcomer":
+        if not wallet["claimed_newcomer"]:
+            wallet["claimed_newcomer"] = True
+            wallet["balance"] = round(wallet["balance"] + NEW_USER_BONUS_AMOUNT, 2)
         await query.edit_message_text(
             text=(
                 "🆕 *New User Bonus*\n"
-                f"New user bonus: *{NEW_USER_BONUS_AMOUNT}*"
+                f"Bonus Amount: *{format_amount(NEW_USER_BONUS_AMOUNT)}*\n"
+                f"💰 *Wallet Balance:* *{format_amount(wallet['balance'])}*"
             ),
             reply_markup=build_unlocked_keyboard(),
             parse_mode="Markdown",
