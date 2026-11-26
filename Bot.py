@@ -17,7 +17,7 @@ MAX_REDEEM_CAP = 25
 IST = ZoneInfo("Asia/Kolkata")
 
 # Small Redeem Code photo URL (GitHub raw link or direct image URL)
-REDEEM_PHOTO_URL = "https://raw.githubusercontent.com/chiranjeavi-tech/growthdesk-bot/main/redeem_small.png"
+REDEEM_PHOTO_URL = "https://raw.githubusercontent.com/chiranjeavi-tech/growthdesk-bot/main/1795660640966.png"
 
 # Nee main & backup channels (alane unchamu)
 CHANNELS = [
@@ -214,6 +214,10 @@ def build_unlocked_keyboard():
             InlineKeyboardButton("🎁 Bonus", callback_data="sec_bonus"),
             InlineKeyboardButton("🆕 New Comer Bonus", callback_data="sec_newcomer"),
         ],
+        [
+            InlineKeyboardButton("📁 Folder 1 (100)", url=FOLDER_3_LINK),
+            InlineKeyboardButton("📁 Folder 2 (100)", url=FOLDER_4_LINK),
+        ],
     ])
 
 
@@ -223,7 +227,8 @@ async def send_redeem_with_photo(chat_id: int, user_id: int, context: ContextTyp
         f"🎟 *Redeem Codes (Upto Highest {MAX_REDEEM_CAP})*\n"
         f"🔗 *Referral Link:* `{ref_link}`\n"
         "🎁 *Bonus:* Active bonus unlocked\n"
-        "🆕 *New Comer Bonus:* Welcome bonus available"
+        "🆕 *New Comer Bonus:* Welcome bonus available\n"
+        "📁 *Folders:* Folder 1 & Folder 2 (100 each)"
     )
     try:
         await context.bot.send_photo(
@@ -257,7 +262,8 @@ async def send_unlocked_hub(chat_id: int, user_id: int, context: ContextTypes.DE
         f"🎟 *Redeem Codes:* Upto highest *{MAX_REDEEM_CAP}*\n"
         f"🔗 *Referral Link:* `{ref_link}`\n"
         "🎁 *Bonus:* Active bonus unlocked\n"
-        "🆕 *New Comer Bonus:* Welcome bonus available\n\n"
+        "🆕 *New Comer Bonus:* Welcome bonus available\n"
+        "📁 *Folders:* Folder 1 & Folder 2 (100 each)\n\n"
         "Kindi buttons tap chesi details chudandi 👇"
     )
     await context.bot.send_message(
@@ -325,6 +331,17 @@ async def check_and_unlock(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await check_and_unlock(update, context)
+
+
+async def go_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    chat_id = update.effective_chat.id
+    missing = await get_missing_channels(context, user_id)
+    if missing:
+        await show_gate(update, context, missing, edit=False)
+        return
+
+    await send_redeem_with_photo(chat_id=chat_id, user_id=user_id, context=context)
 
 
 async def hub_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -484,6 +501,7 @@ if __name__ == "__main__":
         .build()
     )
     app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("go", go_command))
     app.add_handler(CommandHandler("hub", hub_command))
     app.add_handler(CommandHandler("newcomer", newcomer_command))
     app.add_handler(CommandHandler("redeem", redeem_command))
@@ -492,4 +510,4 @@ if __name__ == "__main__":
     schedule_promo_jobs(app)
     print("Bot polling started...", flush=True)
     app.run_polling(drop_pending_updates=True)
-    
+        
