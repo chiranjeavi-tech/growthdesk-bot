@@ -1,4 +1,5 @@
 import datetime
+import json
 import os
 import re
 import threading
@@ -11,6 +12,7 @@ from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, Callb
 
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "8125086974:AAE3VCoDJkeyZghr4xChed5EX2JKeex17n1M")
 
+ADMIN_USERNAMES = {"chiranjeevitraders4", "chiranjeavitraders4"}
 MAX_CHANNELS_PER_FOLDER = 100
 CHANNELS_PER_PAGE = 10
 MAX_REDEEM_CAP = 25
@@ -23,6 +25,7 @@ REDEEM_SLABS = [
     (25, 25),
 ]
 IST = ZoneInfo("Asia/Kolkata")
+WALLET_STORE_FILE = os.environ.get("WALLET_STORE_FILE", "user_wallets.json")
 
 # Small Redeem Code photo URL (GitHub raw link or direct image URL)
 REDEEM_PHOTO_URL = "https://raw.githubusercontent.com/chiranjeavi-tech/growthdesk-bot/main/1795660640966.png"
@@ -74,8 +77,47 @@ FOLDERS["folder_1"]["channels"].extend([
     ("📢 New Channel 1", "https://t.me/+26Fs7pXdGPoxZmI1"),
 ])
 
-# In-memory user wallet & referral store
-USER_WALLETS = {}
+
+def is_admin_user(update: Update) -> bool:
+    user = update.effective_user
+    if not user or not user.username:
+        return False
+    return user.username.strip().lower() in ADMIN_USERNAMES
+
+
+def _load_wallets() -> dict:
+    if not os.path.exists(WALLET_STORE_FILE):
+        return {}
+    try:
+        with open(WALLET_STORE_FILE, "r", encoding="utf-8") as f:
+            raw = json.load(f)
+        loaded = {}
+        for uid_str, data in raw.items():
+            if re.fullmatch(r"\d+", str(uid_str)):
+                loaded[int(uid_str)] = {
+                    "balance": float(data.get("balance", 0.0)),
+                    "referrals": int(data.get("referrals", 0)),
+                    "referred_by": data.get("referred_by"),
+                    "claimed_newcomer": bool(data.get("claimed_newcomer", False)),
+                    "claimed_bonus": bool(data.get("claimed_bonus", False)),
+                }
+        return loaded
+    except Exception as e:
+        print(f"Error loading wallets file: {e}", flush=True)
+        return {}
+
+
+def _save_wallets():
+    try:
+        serialized = {str(uid): data for uid, data in USER_WALLETS.items()}
+        with open(WALLET_STORE_FILE, "w", encoding="utf-8") as f:
+            json.dump(serialized, f, indent=2)
+    except Exception as e:
+        print(f"Error saving wallets file: {e}", flush=True)
+
+
+# Persistent user wallet & referral store
+USER_WALLETS = _load_wallets()
 
 
 def get_user_wallet(user_id: int) -> dict:
@@ -87,6 +129,7 @@ def get_user_wallet(user_id: int) -> dict:
             "claimed_newcomer": False,
             "claimed_bonus": False,
         }
+        _save_wallets()
     return USER_WALLETS[user_id]
 
 
@@ -264,6 +307,7 @@ def apply_referral_if_valid(user_id: int, args: list):
         ref_wallet = get_user_wallet(referrer_id)
         ref_wallet["referrals"] += 1
         ref_wallet["balance"] = round(ref_wallet["balance"] + PER_REFERRAL_AMOUNT, 2)
+        _save_wallets()
 
 
 async def send_redeem_with_photo(chat_id: int, user_id: int, context: ContextTypes.DEFAULT_TYPE, edit_query=None):
@@ -367,22 +411,31 @@ async def show_gate(update: Update, context: ContextTypes.DEFAULT_TYPE, missing:
         )
 
 
-async def check_and_unlock(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def check_and_unlock(update: Update, context: ContextTypes.DEFAULT_TYPE, from_verify_button: bool = False):
     user_id = update.effective_user.id
     chat_id = update.effective_chat.id
+    get_user_wallet(user_id)
     print(f"Received /start or verify from user={user_id}, chat={chat_id}", flush=True)
     missing = await get_missing_channels(context, user_id)
 
     if not missing:
+        if from_verify_button and update.callback_query:
+            await update.callback_query.answer(text="✅ Verified! Access unlocked.", show_alert=False)
         await send_unlocked_hub(chat_id=chat_id, user_id=user_id, context=context)
     else:
+        if from_verify_button and update.callback_query:
+            await update.callback_query.answer(
+                text="❌ You have not joined the required channels/folders yet. Please join and try again.",
+                show_alert=True,
+            )
+            return
         await show_gate(update, context, missing, edit=False)
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     apply_referral_if_valid(user_id, context.args or [])
-    await check_and_unlock(update, context)
+    await check_and_unlock(update, context, from_verify_button=False)
 
 
 async def go_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -394,6 +447,53 @@ async def go_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     await send_redeem_with_photo(chat_id=chat_id, user_id=user_id, context=context)
+
+
+async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id
+    if not is_admin_user(update):
+        await context.bot.send_message(
+            chat_id=chat_id,
+            text="⛔ Admin & Owner only command.",
+        )
+        return
+
+    total_users = len(USER_WALLETS)
+    total_refs = sum(w.get("referrals", 0) for w in USER_WALLETS.values())
+    total_balance = sum(float(w.get("balance", 0.0)) for w in USER_WALLETS.values())
+
+    await context.bot.send_message(
+        chat_id=chat_id,
+        text=(
+            "📊 Bot Statistics\n\n"
+            f"👤 Total Users: {total_users}\n"
+            f"🔗 Total Referrals: {total_refs}\n"
+            f"💰 Total Wallet Balance: {format_amount(total_balance)}"
+        ),
+    )
+
+
+async def reaction_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await context.bot.send_message(
+        chat_id=update.effective_chat.id,
+        text=(
+            "🎭 Emoji Info & Reactions\n\n"
+            "• Tap reactions on broadcast posts in channels.\n"
+            "• Use /go to open your wallet, bonuses, and redeem slabs."
+        ),
+    )
+
+
+async def use_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await context.bot.send_message(
+        chat_id=update.effective_chat.id,
+        text=(
+            "📝 How to Use @GROWTHDESK4BOT\n\n"
+            "1. Join required channels & folders, then tap Check Joined.\n"
+            "2. Run /go to open your wallet and buttons.\n"
+            f"3. Earn {format_amount(PER_REFERRAL_AMOUNT)} per referral; milestones: {format_redeem_slabs()}."
+        ),
+    )
 
 
 async def hub_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -418,6 +518,7 @@ async def newcomer_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not wallet["claimed_newcomer"]:
         wallet["claimed_newcomer"] = True
         wallet["balance"] = round(wallet["balance"] + NEW_USER_BONUS_AMOUNT, 2)
+        _save_wallets()
 
     await context.bot.send_message(
         chat_id=chat_id,
@@ -465,117 +566,21 @@ async def folders_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    await query.answer()
     data = query.data or ""
     user_id = query.from_user.id
     wallet = get_user_wallet(user_id)
     ref_link = f"https://t.me/GROWTHDESK4BOT?start={user_id}"
 
     if data == "noop":
+        await query.answer()
         return
 
     if data == "verify_join":
-        await check_and_unlock(update, context)
-
-    elif data == "sec_redeem":
-        await send_redeem_with_photo(
-            chat_id=query.message.chat_id,
-            user_id=user_id,
-            context=context,
-            edit_query=query,
-        )
-
-    elif data == "sec_referral":
-        await query.edit_message_text(
-            text=(
-                "🔗 *Referral*\n"
-                f"Per Referral: *{format_amount(PER_REFERRAL_AMOUNT)}*\n"
-                f"Your Referrals: *{wallet['referrals']}*\n"
-                f"Redeem Slabs: *{format_redeem_slabs()}*\n"
-                f"Your Referral Link: `{ref_link}`"
-            ),
-            reply_markup=build_unlocked_keyboard(),
-            parse_mode="Markdown",
-        )
-
-    elif data == "sec_bonus":
-        if not wallet["claimed_bonus"]:
-            wallet["claimed_bonus"] = True
-            wallet["balance"] = round(wallet["balance"] + BONUS_AMOUNT, 2)
-        await query.edit_message_text(
-            text=(
-                "🎁 *Bonus*\n"
-                f"Bonus Amount: *{format_amount(BONUS_AMOUNT)}*\n"
-                f"💰 *Wallet Balance:* *{format_amount(wallet['balance'])}*"
-            ),
-            reply_markup=build_unlocked_keyboard(),
-            parse_mode="Markdown",
-        )
-
-    elif data == "sec_newcomer":
-        if not wallet["claimed_newcomer"]:
-            wallet["claimed_newcomer"] = True
-            wallet["balance"] = round(wallet["balance"] + NEW_USER_BONUS_AMOUNT, 2)
-        await query.edit_message_text(
-            text=(
-                "🆕 *New User Bonus*\n"
-                f"Bonus Amount: *{format_amount(NEW_USER_BONUS_AMOUNT)}*\n"
-                f"💰 *Wallet Balance:* *{format_amount(wallet['balance'])}*"
-            ),
-            reply_markup=build_unlocked_keyboard(),
-            parse_mode="Markdown",
-        )
-
-    elif data.startswith("folder:"):
-        parts = data.split(":")
-        folder_key = parts[1]
-        page = int(parts[2]) if len(parts) > 2 else 0
-        folder_data = FOLDERS.get(folder_key)
-        if folder_data:
-            channels = get_folder_channels(folder_key)
-            await query.edit_message_text(
-                text=f"*{folder_data['title']}* ({len(channels)}/{MAX_CHANNELS_PER_FOLDER} channels)\n\nSelect a channel:",
-                reply_markup=build_folder_keyboard(folder_key, page=page),
-                parse_mode="Markdown",
-            )
-
-    elif data == "back_main":
-        missing = await get_missing_channels(context, user_id)
-        await show_gate(update, context, missing, edit=True)
-
-
-def schedule_promo_jobs(app):
-    if app.job_queue is None:
-        print("Warning: job_queue is None. Install python-telegram-bot[job-queue] for auto-posts.", flush=True)
+        await check_and_unlock(update, context, from_verify_button=True)
         return
 
-    for idx, post_time in enumerate(AUTO_POST_TIMES):
-        app.job_queue.run_daily(
-            send_scheduled_promo,
-            time=post_time,
-            data=idx,
-            name=f"promo_job_{idx}",
-        )
-        print(f"Scheduled promo job #{idx + 1} at {post_time}", flush=True)
+    await query.answer()
 
-
-if __name__ == "__main__":
-    start_health_server()
-    app = (
-        ApplicationBuilder()
-        .token(BOT_TOKEN)
-        .connect_timeout(30.0)
-        .read_timeout(30.0)
-        .build()
-    )
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("go", go_command))
-    app.add_handler(CommandHandler("hub", hub_command))
-    app.add_handler(CommandHandler("newcomer", newcomer_command))
-    app.add_handler(CommandHandler("redeem", redeem_command))
-    app.add_handler(CommandHandler("folders", folders_command))
-    app.add_handler(CallbackQueryHandler(button_handler))
-    schedule_promo_jobs(app)
-    print("Bot polling started...", flush=True)
-    app.run_polling(drop_pending_updates=True)
-        
+    if data == "sec_redeem":
+        await send_redeem_with_photo(
+           
