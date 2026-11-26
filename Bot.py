@@ -13,7 +13,11 @@ BOT_TOKEN = os.environ.get("BOT_TOKEN", "8125086974:AAE3VCoDJkeyZghr4xChed5EX2JK
 
 MAX_CHANNELS_PER_FOLDER = 100
 CHANNELS_PER_PAGE = 10
+MAX_REDEEM_CAP = 25
 IST = ZoneInfo("Asia/Kolkata")
+
+# Small Redeem Code photo URL (GitHub raw link or direct image URL)
+REDEEM_PHOTO_URL = "https://raw.githubusercontent.com/chiranjeavi-tech/growthdesk-bot/main/redeem_small.png"
 
 # Nee main & backup channels (alane unchamu)
 CHANNELS = [
@@ -21,7 +25,11 @@ CHANNELS = [
     (-1002735833404, "https://t.me/+6g8Hcs_EYOhlODM1", "📢 BACK-UP CHANNEL 💸💸"),
 ]
 
-# Daily 3 times (IST): 10:00 AM, 06:05PM, 09:00 PM
+# 3rd & 4th single-click Telegram folder links (up to 100 channels each)
+FOLDER_3_LINK = "https://t.me/addlist/-Qq__yiQlZQzODZl"
+FOLDER_4_LINK = "https://t.me/addlist/UNOERSRR-Zs0Njk1"
+
+# Daily 3 times (IST): 10:00 AM, 05:05 PM, 09:00 PM
 AUTO_POST_TIMES = [
     datetime.time(hour=10, minute=0, tzinfo=IST),
     datetime.time(hour=17, minute=5, tzinfo=IST),
@@ -53,7 +61,6 @@ FOLDERS = {
     for i in range(1, 11)
 }
 
-# Example: Folder 1 lo kotha channel add cheyalante ila add cheyachu:
 FOLDERS["folder_1"]["channels"].extend([
     ("📢 New Channel 1", "https://t.me/+26Fs7pXdGPoxZmI1"),
 ])
@@ -141,20 +148,30 @@ async def get_missing_channels(context: ContextTypes.DEFAULT_TYPE, user_id: int)
     return missing
 
 
+def build_two_folders_keyboard():
+    return InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("📁 Folder 1 (100)", url=FOLDER_3_LINK),
+            InlineKeyboardButton("📁 Folder 2 (100)", url=FOLDER_4_LINK),
+        ]
+    ])
+
+
 def build_main_keyboard(missing: list):
     keyboard = []
 
+    # 1st & 2nd: Main & Back-up channels
     for url, label in missing:
         keyboard.append([InlineKeyboardButton(label, url=url)])
 
-    # 10 Folder buttons arranged 2 per row (5 rows)
-    folder_keys = list(FOLDERS.keys())
-    for idx in range(0, len(folder_keys), 2):
-        row = []
-        for key in folder_keys[idx : idx + 2]:
-            title = FOLDERS[key]["title"]
-            row.append(InlineKeyboardButton(title, callback_data=f"folder:{key}:0"))
-        keyboard.append(row)
+    # 3rd & 4th: Direct single-click folder links (up to 100 channels each)
+    folder_row = []
+    if FOLDER_3_LINK:
+        folder_row.append(InlineKeyboardButton("➕ Join", url=FOLDER_3_LINK))
+    if FOLDER_4_LINK:
+        folder_row.append(InlineKeyboardButton("➕ Join", url=FOLDER_4_LINK))
+    if folder_row:
+        keyboard.append(folder_row)
 
     keyboard.append([InlineKeyboardButton("✅ Check Joined", callback_data="verify_join")])
     return InlineKeyboardMarkup(keyboard)
@@ -174,7 +191,6 @@ def build_folder_keyboard(folder_key: str, page: int = 0):
     for ch_label, ch_url in page_channels:
         keyboard.append([InlineKeyboardButton(ch_label, url=ch_url)])
 
-    # Pagination controls when there are multiple pages
     if total_pages > 1:
         nav_row = []
         if page > 0:
@@ -186,6 +202,70 @@ def build_folder_keyboard(folder_key: str, page: int = 0):
 
     keyboard.append([InlineKeyboardButton("⬅️ Back to Main", callback_data="back_main")])
     return InlineKeyboardMarkup(keyboard)
+
+
+def build_unlocked_keyboard():
+    return InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton(f"🎟 Redeem (Max {MAX_REDEEM_CAP})", callback_data="sec_redeem"),
+            InlineKeyboardButton("🔗 Referral", callback_data="sec_referral"),
+        ],
+        [
+            InlineKeyboardButton("🎁 Bonus", callback_data="sec_bonus"),
+            InlineKeyboardButton("🆕 New Comer Bonus", callback_data="sec_newcomer"),
+        ],
+    ])
+
+
+async def send_redeem_with_photo(chat_id: int, user_id: int, context: ContextTypes.DEFAULT_TYPE, edit_query=None):
+    ref_link = f"https://t.me/GROWTHDESK4BOT?start={user_id}"
+    caption_text = (
+        f"🎟 *Redeem Codes (Upto Highest {MAX_REDEEM_CAP})*\n"
+        f"🔗 *Referral Link:* `{ref_link}`\n"
+        "🎁 *Bonus:* Active bonus unlocked\n"
+        "🆕 *New Comer Bonus:* Welcome bonus available"
+    )
+    try:
+        await context.bot.send_photo(
+            chat_id=chat_id,
+            photo=REDEEM_PHOTO_URL,
+            caption=caption_text,
+            reply_markup=build_unlocked_keyboard(),
+            parse_mode="Markdown",
+        )
+    except Exception as e:
+        print(f"Photo send failed: {e}", flush=True)
+        if edit_query is not None:
+            await edit_query.edit_message_text(
+                text=caption_text,
+                reply_markup=build_unlocked_keyboard(),
+                parse_mode="Markdown",
+            )
+        else:
+            await context.bot.send_message(
+                chat_id=chat_id,
+                text=caption_text,
+                reply_markup=build_unlocked_keyboard(),
+                parse_mode="Markdown",
+            )
+
+
+async def send_unlocked_hub(chat_id: int, user_id: int, context: ContextTypes.DEFAULT_TYPE):
+    ref_link = f"https://t.me/GROWTHDESK4BOT?start={user_id}"
+    text = (
+        "🎉 *Verified! Growth Desk access unlock ayyindi.*\n\n"
+        f"🎟 *Redeem Codes:* Upto highest *{MAX_REDEEM_CAP}*\n"
+        f"🔗 *Referral Link:* `{ref_link}`\n"
+        "🎁 *Bonus:* Active bonus unlocked\n"
+        "🆕 *New Comer Bonus:* Welcome bonus available\n\n"
+        "Kindi buttons tap chesi details chudandi 👇"
+    )
+    await context.bot.send_message(
+        chat_id=chat_id,
+        text=text,
+        reply_markup=build_unlocked_keyboard(),
+        parse_mode="Markdown",
+    )
 
 
 async def send_scheduled_promo(context: ContextTypes.DEFAULT_TYPE):
@@ -238,11 +318,7 @@ async def check_and_unlock(update: Update, context: ContextTypes.DEFAULT_TYPE):
     missing = await get_missing_channels(context, user_id)
 
     if not missing:
-        await context.bot.send_message(
-            chat_id=chat_id,
-            text="🎉 *Verified!* Growth Desk access unlock ayyindi.",
-            parse_mode="Markdown",
-        )
+        await send_unlocked_hub(chat_id=chat_id, user_id=user_id, context=context)
     else:
         await show_gate(update, context, missing, edit=False)
 
@@ -251,16 +327,119 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await check_and_unlock(update, context)
 
 
+async def hub_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    chat_id = update.effective_chat.id
+    missing = await get_missing_channels(context, user_id)
+    if missing:
+        await show_gate(update, context, missing, edit=False)
+        return
+    await send_unlocked_hub(chat_id=chat_id, user_id=user_id, context=context)
+
+
+async def newcomer_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    chat_id = update.effective_chat.id
+    missing = await get_missing_channels(context, user_id)
+    if missing:
+        await show_gate(update, context, missing, edit=False)
+        return
+
+    await context.bot.send_message(
+        chat_id=chat_id,
+        text=(
+            "🆕 *New Comer Bonus*\n"
+            "Kothaga join ayina new comers kosam special welcome bonus unlocked!\n"
+            f"🎟 Redeem limit: Upto highest *{MAX_REDEEM_CAP}*"
+        ),
+        reply_markup=build_unlocked_keyboard(),
+        parse_mode="Markdown",
+    )
+
+
+async def redeem_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    chat_id = update.effective_chat.id
+    missing = await get_missing_channels(context, user_id)
+    if missing:
+        await show_gate(update, context, missing, edit=False)
+        return
+
+    await send_redeem_with_photo(chat_id=chat_id, user_id=user_id, context=context)
+
+
+async def folders_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    chat_id = update.effective_chat.id
+    missing = await get_missing_channels(context, user_id)
+    if missing:
+        await show_gate(update, context, missing, edit=False)
+        return
+
+    await context.bot.send_message(
+        chat_id=chat_id,
+        text=(
+            "📁 *Growth Desk Folders (2)*\n\n"
+            "1️⃣ Folder 1 (Up to 100 channels)\n"
+            "2️⃣ Folder 2 (Up to 100 channels)\n\n"
+            "Kindi buttons tap chesi join avvandi 👇"
+        ),
+        reply_markup=build_two_folders_keyboard(),
+        parse_mode="Markdown",
+    )
+
+
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     data = query.data or ""
+    user_id = query.from_user.id
+    ref_link = f"https://t.me/GROWTHDESK4BOT?start={user_id}"
 
     if data == "noop":
         return
 
     if data == "verify_join":
         await check_and_unlock(update, context)
+
+    elif data == "sec_redeem":
+        await send_redeem_with_photo(
+            chat_id=query.message.chat_id,
+            user_id=user_id,
+            context=context,
+            edit_query=query,
+        )
+
+    elif data == "sec_referral":
+        await query.edit_message_text(
+            text=(
+                f"🔗 *Referral*\n"
+                f"Your Referral Link: `{ref_link}`\n"
+                "Share chesi referrals count penchukondi."
+            ),
+            reply_markup=build_unlocked_keyboard(),
+            parse_mode="Markdown",
+        )
+
+    elif data == "sec_bonus":
+        await query.edit_message_text(
+            text=(
+                "🎁 *Bonus*\n"
+                "Regular / active member bonus details ikkada chupistham."
+            ),
+            reply_markup=build_unlocked_keyboard(),
+            parse_mode="Markdown",
+        )
+
+    elif data == "sec_newcomer":
+        await query.edit_message_text(
+            text=(
+                "🆕 *New Comer Bonus*\n"
+                "Kothaga join ayina new comers kosam special bonus."
+            ),
+            reply_markup=build_unlocked_keyboard(),
+            parse_mode="Markdown",
+        )
 
     elif data.startswith("folder:"):
         parts = data.split(":")
@@ -276,7 +455,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
 
     elif data == "back_main":
-        missing = await get_missing_channels(context, update.effective_user.id)
+        missing = await get_missing_channels(context, user_id)
         await show_gate(update, context, missing, edit=True)
 
 
@@ -305,6 +484,10 @@ if __name__ == "__main__":
         .build()
     )
     app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("hub", hub_command))
+    app.add_handler(CommandHandler("newcomer", newcomer_command))
+    app.add_handler(CommandHandler("redeem", redeem_command))
+    app.add_handler(CommandHandler("folders", folders_command))
     app.add_handler(CallbackQueryHandler(button_handler))
     schedule_promo_jobs(app)
     print("Bot polling started...", flush=True)
