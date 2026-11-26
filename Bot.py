@@ -34,20 +34,16 @@ REDEEM_SLABS = [
 IST = ZoneInfo("Asia/Kolkata")
 WALLET_STORE_FILE = os.environ.get("WALLET_STORE_FILE", "user_wallets.json")
 
-# Small Redeem Code photo URL (GitHub raw link or direct image URL)
 REDEEM_PHOTO_URL = "https://raw.githubusercontent.com/chiranjeavi-tech/growthdesk-bot/main/1795660640966.png"
 
-# Main & backup channels (kept as configured)
 CHANNELS = [
     (-1003941578746, "https://t.me/+L_jUVKFNZp5mOGJl", "📢 MAIN CHANNEL 💸💸"),
     (-1002735833404, "https://t.me/+6g8Hcs_EYOhlODM1", "📢 BACK-UP CHANNEL 💸💸"),
 ]
 
-# 3rd & 4th single-click Telegram folder links (up to 100 channels each)
 FOLDER_3_LINK = "https://t.me/addlist/-Qq__yiQlZQzODZl"
 FOLDER_4_LINK = "https://t.me/addlist/UNOERSRR-Zs0Njk1"
 
-# Daily 4 times (IST): 10:00 AM, 01:00 PM, 05:05 PM, 09:00 PM
 AUTO_POST_TIMES = [
     datetime.time(hour=10, minute=0, tzinfo=IST),
     datetime.time(hour=13, minute=0, tzinfo=IST),
@@ -71,7 +67,6 @@ PROMO_POSTS = [
     ),
 ]
 
-# 10 Folders (Up to 100 channels per folder)
 FOLDERS = {
     f"folder_{i}": {
         "title": f"📁 Folder {i}",
@@ -127,7 +122,6 @@ def _save_wallets():
         print(f"Error saving wallets file: {e}", flush=True)
 
 
-# Persistent user wallet & referral store
 USER_WALLETS = _load_wallets()
 
 
@@ -579,4 +573,15 @@ async def folders_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    
+    query = update.callback_query
+    data = query.data or ""
+    user_id = query.from_user.id
+    wallet = get_user_wallet(user_id)
+    ref_link = f"https://t.me/GROWTHDESK4BOT?start={user_id}"
+
+    if data == "noop":
+        await query.answer()
+        return
+
+    if data == "verify_join":
+        await check_and_unlock(update, context
