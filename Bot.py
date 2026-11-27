@@ -433,7 +433,7 @@ async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode="Markdown",
     )
 async def reaction_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-        _track_current_user(update)
+    _track_current_user(update)
     await context.bot.send_message(
         chat_id=update.effective_chat.id,
         text=(
