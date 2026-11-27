@@ -538,9 +538,10 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await query.answer()
 
-    if data == "sec_redeem":
-        await send_redeem_with_photo(chat_id=query.message.chat_id, user_id=user_id, context=context, edit_query=query)
-            elif data == "sec_referral":
+      if data == "sec_redeem":
+        await send_redeem_with_photo(chat_id=query.message.chat_id, user_id=user_id, context=context)
+        return
+    elif data == "sec_referral":
         await query.answer()
         await query.message.reply_text(
             text=(
@@ -554,6 +555,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode="Markdown",
         )
         return
+        
     
     
     elif data == "sec_bonus":
