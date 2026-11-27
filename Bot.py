@@ -540,18 +540,22 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if data == "sec_redeem":
         await send_redeem_with_photo(chat_id=query.message.chat_id, user_id=user_id, context=context, edit_query=query)
-    elif data == "sec_referral":
-        await query.edit_message_text(
+            elif data == "sec_referral":
+        await query.answer()
+        await query.message.reply_text(
             text=(
                 "🔗 *Referral*\n"
-                f"Per Referral: *{format_amount(PER_REFERRAL_AMOUNT)}*\n"
-                f"Your Referrals: *{wallet['referrals']}*\n"
-                f"Redeem Slabs: *{format_redeem_slabs()}*\n"
-                f"Your Referral Link: `{ref_link}`"
+                f"▪️ Per Referral: *{format_amount(PER_REFERRAL_AMOUNT)}*\n"
+                f"▪️ Your Referrals: *{wallet['referrals']}*\n"
+                f"▪️ Redeem Slabs: *{format_redeem_slabs()}*\n"
+                f"▪️ Your Referral Link: `{ref_link}`"
             ),
             reply_markup=build_unlocked_keyboard(),
             parse_mode="Markdown",
         )
+        return
+    
+    
     elif data == "sec_bonus":
         if not wallet["claimed_bonus"]:
             wallet["claimed_bonus"] = True
