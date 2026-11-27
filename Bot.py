@@ -537,7 +537,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=build_unlocked_keyboard(),
             parse_mode="Markdown",
         )
-    elif data == "sec_newcomer":
+         elif data == "sec_newcomer":  
         if not wallet["claimed_newcomer"]:
             wallet["claimed_newcomer"] = True
             wallet["balance"] = round(wallet["balance"] + NEW_USER_BONUS_AMOUNT, 2)
@@ -550,19 +550,9 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             ),
             reply_markup=build_unlocked_keyboard(),
             parse_mode="Markdown",
+        
         )
-    elif data.startswith("folder:"):
-        parts = data.split(":")
-        folder_key = parts[1]
-        page = int(parts[2]) if len(parts) > 2 else 0
-        folder_data = FOLDERS.get(folder_key)
-        if folder_data:
-            channels = get_folder_channels(folder_key)
-            await query.edit_message_text(
-                text=f"*{folder_data['title']}* ({len(channels)}/{MAX_CHANNELS_PER_FOLDER} channels)\n\nSelect a channel:",
-                reply_markup=build_folder_keyboard(folder_key, page=page),
-                parse_mode="Markdown",
-            )
+        
     elif data == "back_main":
         missing = await get_missing_channels(context, user_id)
         await show_gate(update, context, missing, edit=True)
