@@ -12,19 +12,20 @@ from telegram.error import Conflict
 from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, CallbackQueryHandler
 
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "8125086974:AAE3VCoDJkeyZghr4xChed5EX2JKeex17n1M")
-ADMIN_USERNAMES = {"chiranjeevitraders4", "chiranjeavitraders4"}
+ADMIN_USERNAMES = {"chiranjeevitraders4", "chiranjeavitraders4", "chiranjeavittrader4"}
 ADMIN_USER_IDS = {
     int(x.strip())
     for x in os.environ.get("ADMIN_USER_IDS", "").split(",")
     if x.strip().isdigit()
 }
 
+DISPLAY_USERS_LABEL = "10k"
 MAX_CHANNELS_PER_FOLDER = 100
 CHANNELS_PER_PAGE = 10
 MAX_REDEEM_CAP = 25
 PER_REFERRAL_AMOUNT = 0.30
-BONUS_AMOUNT = 0.10
-NEW_USER_BONUS_AMOUNT = 0.10
+BONUS_AMOUNT = 10.0
+NEW_USER_BONUS_AMOUNT = 10.0
 REDEEM_SLABS = [(10, 10), (15, 15), (25, 25)]
 IST = ZoneInfo("Asia/Kolkata")
 WALLET_STORE_FILE = os.environ.get("WALLET_STORE_FILE", "user_wallets.json")
@@ -50,7 +51,7 @@ PROMO_POSTS = [
         "🔥 *REDEEM CODES & TELEGRAM PREMIUM HUB* 🔥\n"
         "⌛️ *LIMITED TIME ACCESS!*\n\n"
         "*What You'll Get:*\n"
-        "▪️ Per Referral: 0.30 | Bonus & New User Bonus: 0.10\n"
+        "▪️ Per Referral: 0.30 | Bonus & New User Bonus: 10.00\n"
         "▪️ Redeem Codes: 10 Refs = ₹10 | 15 Refs = ₹15 | 25 Refs = ₹25\n"
         "▪️ Instant Access & Daily Fresh Updates\n\n"
         "🚀 *Start Bot Now 👇*\n\n"
@@ -89,6 +90,9 @@ def _load_wallets() -> dict:
                     "referred_by": data.get("referred_by"),
                     "claimed_newcomer": bool(data.get("claimed_newcomer", False)),
                     "claimed_bonus": bool(data.get("claimed_bonus", False)),
+                    "username": data.get("username", ""),
+                    "first_name": data.get("first_name", ""),
+                    "last_seen": data.get("last_seen", ""),
                 }
         return loaded
     except Exception as e:
@@ -115,9 +119,23 @@ def get_user_wallet(user_id: int) -> dict:
             "referred_by": None,
             "claimed_newcomer": False,
             "claimed_bonus": False,
+            "username": "",
+            "first_name": "",
+            "last_seen": "",
         }
         _save_wallets()
     return USER_WALLETS[user_id]
+
+
+def _track_current_user(update: Update):
+    user = update.effective_user
+    if not user:
+        return
+    w = get_user_wallet(user.id)
+    w["username"] = f"@{user.username}" if user.username else "NoUsername"
+    w["first_name"] = user.first_name or "Unknown"
+    w["last_seen"] = datetime.datetime.now(IST).strftime("%Y-%m-%d %H:%M")
+    _save_wallets()
 
 
 def format_amount(amount: float) -> str:
@@ -184,8 +202,6 @@ def get_all_target_chats() -> list:
                 seen.add(t)
                 targets.append(t)
     return targets
-
-
 async def get_missing_channels(context: ContextTypes.DEFAULT_TYPE, user_id: int):
     missing = []
     for ch_id, ch_url, label in CHANNELS:
@@ -359,9 +375,9 @@ async def show_gate(update: Update, context: ContextTypes.DEFAULT_TYPE, missing:
 
 
 async def check_and_unlock(update: Update, context: ContextTypes.DEFAULT_TYPE, from_verify_button: bool = False):
+    _track_current_user(update)
     user_id = update.effective_user.id
     chat_id = update.effective_chat.id
-    get_user_wallet(user_id)
     missing = await get_missing_channels(context, user_id)
     if not missing:
         if from_verify_button and update.callback_query:
@@ -378,11 +394,13 @@ async def check_and_unlock(update: Update, context: ContextTypes.DEFAULT_TYPE, f
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    _track_current_user(update)
     apply_referral_if_valid(update.effective_user.id, context.args or [])
     await check_and_unlock(update, context, from_verify_button=False)
 
 
 async def go_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    _track_current_user(update)
     user_id = update.effective_user.id
     missing = await get_missing_channels(context, user_id)
     if missing:
@@ -392,25 +410,30 @@ async def go_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    chat_id = update.effective_chat.id
+    _track_current_user(update)
     if not is_admin_user(update):
-        await context.bot.send_message(chat_id=chat_id, text="⛔ Admin & Owner only command.")
         return
     total_users = len(USER_WALLETS)
     total_refs = sum(w.get("referrals", 0) for w in USER_WALLETS.values())
     total_balance = sum(float(w.get("balance", 0.0)) for w in USER_WALLETS.values())
+    recent_lines = [
+        f"• `{uid}` | {w.get('username') or 'NoUsername'} ({w.get('first_name') or 'Unknown'}) — *{format_amount(float(w.get('balance', 0.0)))}* | {w.get('last_seen') or '-'}"
+        for uid, w in list(USER_WALLETS.items())[-15:]
+    ]
     await context.bot.send_message(
-        chat_id=chat_id,
+        chat_id=update.effective_chat.id,
         text=(
-            "📊 Bot Statistics\n\n"
-            f"👤 Total Users: {total_users}\n"
-            f"🔗 Total Referrals: {total_refs}\n"
-            f"💰 Total Wallet Balance: {format_amount(total_balance)}"
+            "📊 *Admin Stats*\n\n"
+            f"👥 *Display Users:* *{DISPLAY_USERS_LABEL}*\n"
+            f"👤 *Real Users:* *{total_users}*\n"
+            f"🔗 *Total Referrals:* *{total_refs}*\n"
+            f"💰 *Total Wallet Balance:* *{format_amount(total_balance)}*\n\n"
+            "🧾 *Recent Users:*\n" + ("\n".join(recent_lines) if recent_lines else "No users yet")
         ),
+        parse_mode="Markdown",
     )
-
-
-async def reaction_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    async def reaction_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    _track_current_user(update)
     await context.bot.send_message(
         chat_id=update.effective_chat.id,
         text=(
@@ -422,6 +445,7 @@ async def reaction_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def use_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    _track_current_user(update)
     await context.bot.send_message(
         chat_id=update.effective_chat.id,
         text=(
@@ -434,6 +458,7 @@ async def use_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def hub_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    _track_current_user(update)
     user_id = update.effective_user.id
     missing = await get_missing_channels(context, user_id)
     if missing:
@@ -443,6 +468,7 @@ async def hub_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def newcomer_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    _track_current_user(update)
     user_id = update.effective_user.id
     missing = await get_missing_channels(context, user_id)
     if missing:
@@ -466,6 +492,7 @@ async def newcomer_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def redeem_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    _track_current_user(update)
     user_id = update.effective_user.id
     missing = await get_missing_channels(context, user_id)
     if missing:
@@ -475,6 +502,7 @@ async def redeem_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def folders_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    _track_current_user(update)
     user_id = update.effective_user.id
     missing = await get_missing_channels(context, user_id)
     if missing:
@@ -498,6 +526,10 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data = query.data or ""
     user_id = query.from_user.id
     wallet = get_user_wallet(user_id)
+    wallet["username"] = f"@{query.from_user.username}" if query.from_user.username else "NoUsername"
+    wallet["first_name"] = query.from_user.first_name or "Unknown"
+    wallet["last_seen"] = datetime.datetime.now(IST).strftime("%Y-%m-%d %H:%M")
+    _save_wallets()
     ref_link = f"https://t.me/GROWTHDESK4BOT?start={user_id}"
 
     if data == "noop":
@@ -542,18 +574,15 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             wallet["claimed_newcomer"] = True
             wallet["balance"] = round(wallet["balance"] + NEW_USER_BONUS_AMOUNT, 2)
             _save_wallets()
-            await query.edit_message_text(
-                text=(
-                    "🆕 *New User Bonus*\n"
-                    f"Bonus Amount: *{format_amount(NEW_USER_BONUS_AMOUNT)}*\n"
-                    f"💰 *Wallet Balance:* *{format_amount(wallet['balance'])}*"
-                ),
-                reply_markup=build_unlocked_keyboard(),
-                parse_mode="Markdown",
-            )
-            
-            
-        
+        await query.edit_message_text(
+            text=(
+                "🆕 *New User Bonus*\n"
+                f"Bonus Amount: *{format_amount(NEW_USER_BONUS_AMOUNT)}*\n"
+                f"💰 *Wallet Balance:* *{format_amount(wallet['balance'])}*"
+            ),
+            reply_markup=build_unlocked_keyboard(),
+            parse_mode="Markdown",
+        )
     elif data == "back_main":
         missing = await get_missing_channels(context, user_id)
         await show_gate(update, context, missing, edit=True)
@@ -561,28 +590,15 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def global_error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
     if isinstance(context.error, Conflict):
-        print("Polling Conflict detected: another instance is using getUpdates.", flush=True)
+        print("Polling conflict detected; another instance is active.", flush=True)
         return
     print(f"Unhandled bot error: {context.error}", flush=True)
 
 
-def schedule_promo_jobs(app):
-    if app.job_queue is None:
-        print("Warning: job_queue is None.", flush=True)
-        return
-    for idx, post_time in enumerate(AUTO_POST_TIMES):
-        app.job_queue.run_daily(send_scheduled_promo, time=post_time, data=idx, name=f"promo_job_{idx}")
-
-
-if __name__ == "__main__":
+def main():
     start_health_server()
-    app = (
-        ApplicationBuilder()
-        .token(BOT_TOKEN)
-        .connect_timeout(30.0)
-        .read_timeout(30.0)
-        .build()
-    )
+    app = ApplicationBuilder().token(BOT_TOKEN).build()
+
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("go", go_command))
     app.add_handler(CommandHandler("stats", stats_command))
@@ -594,7 +610,19 @@ if __name__ == "__main__":
     app.add_handler(CommandHandler("folders", folders_command))
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_error_handler(global_error_handler)
-    schedule_promo_jobs(app)
+
+    if app.job_queue:
+        for idx, run_time in enumerate(AUTO_POST_TIMES):
+            app.job_queue.run_daily(
+                send_scheduled_promo,
+                time=run_time,
+                data=idx,
+                name=f"auto_promo_{idx}",
+            )
+
     print("Bot polling started...", flush=True)
     app.run_polling(drop_pending_updates=True)
-    
+
+
+if __name__ == "__main__":
+    main()
