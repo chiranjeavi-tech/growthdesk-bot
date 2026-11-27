@@ -433,8 +433,7 @@ async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode="Markdown",
     )
     async def reaction_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-        _track_current_user(update)
-        
+    _track_current_user(update)
     await context.bot.send_message(
         chat_id=update.effective_chat.id,
         text=(
@@ -442,7 +441,9 @@ async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "• Tap reactions on broadcast posts in channels.\n"
             "• Use /go to open your wallet, bonuses, and redeem slabs."
         ),
-    )
+    
+    
+
 
 
 async def use_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -455,10 +456,9 @@ async def use_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "2. Run /go to open your wallet and buttons.\n"
             f"3. Earn {format_amount(PER_REFERRAL_AMOUNT)} per referral; milestones: {format_redeem_slabs()}."
         ),
-    )
-
 
 async def hub_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    
     _track_current_user(update)
     user_id = update.effective_user.id
     missing = await get_missing_channels(context, user_id)
