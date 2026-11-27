@@ -448,12 +448,12 @@ async def use_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_message(
         chat_id=update.effective_chat.id,
         text=(
-            "📝 How to Use @GROWTHDESK4BOT\n\n"
+            "📖 How to Use @GROWTHDESK4BOT\n\n"
             "1. Join required channels & folders, then tap Check Joined.\n"
             "2. Run /go to open your wallet and buttons.\n"
             f"3. Earn {format_amount(PER_REFERRAL_AMOUNT)} per referral; milestones: {format_redeem_slabs()}."
         ),
-
+    )
 async def hub_command(update: Update, context: ContextTypes.DEFAULT_TYPE):  
     _track_current_user(update)
     user_id = update.effective_user.id
