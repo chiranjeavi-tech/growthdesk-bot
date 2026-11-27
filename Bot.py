@@ -537,7 +537,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=build_unlocked_keyboard(),
             parse_mode="Markdown",
         )
-         elif data == "sec_newcomer":  
+   elif data == "sec_newcomer":  
         if not wallet["claimed_newcomer"]:
             wallet["claimed_newcomer"] = True
             wallet["balance"] = round(wallet["balance"] + NEW_USER_BONUS_AMOUNT, 2)
