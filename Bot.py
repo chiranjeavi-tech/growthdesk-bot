@@ -441,11 +441,9 @@ async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "• Tap reactions on broadcast posts in channels.\n"
             "• Use /go to open your wallet, bonuses, and redeem slabs."
         ),
+    )
     
     
-
-
-
 async def use_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     _track_current_user(update)
     await context.bot.send_message(
