@@ -1,4 +1,4 @@
-import datetime
+óimport datetime
 import json
 import os
 import re
@@ -536,13 +536,12 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await check_and_unlock(update, context, from_verify_button=True)
         return
 
-    await query.answer()
+        await query.answer()
 
-      if data == "sec_redeem":
+    if data == "sec_redeem":
         await send_redeem_with_photo(chat_id=query.message.chat_id, user_id=user_id, context=context)
         return
     elif data == "sec_referral":
-        await query.answer()
         await query.message.reply_text(
             text=(
                 "🔗 *Referral*\n"
