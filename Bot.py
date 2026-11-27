@@ -457,8 +457,7 @@ async def use_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"3. Earn {format_amount(PER_REFERRAL_AMOUNT)} per referral; milestones: {format_redeem_slabs()}."
         ),
 
-async def hub_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    
+async def hub_command(update: Update, context: ContextTypes.DEFAULT_TYPE):  
     _track_current_user(update)
     user_id = update.effective_user.id
     missing = await get_missing_channels(context, user_id)
@@ -468,7 +467,7 @@ async def hub_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await send_unlocked_hub(chat_id=update.effective_chat.id, user_id=user_id, context=context)
 
 
-async def newcomer_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def newcomer_command(update: Update, context: ContextTypes.DEFAULT_TYPE):    
     _track_current_user(update)
     user_id = update.effective_user.id
     missing = await get_missing_channels(context, user_id)
