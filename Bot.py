@@ -537,21 +537,21 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=build_unlocked_keyboard(),
             parse_mode="Markdown",
         )
-   elif data == "sec_newcomer":  
+       elif data == "sec_newcomer":
         if not wallet["claimed_newcomer"]:
             wallet["claimed_newcomer"] = True
             wallet["balance"] = round(wallet["balance"] + NEW_USER_BONUS_AMOUNT, 2)
             _save_wallets()
-                await query.edit_message_text(
-            text=(
-                "🆕 *New User Bonus*\n"
-                f"Bonus Amount: *{format_amount(NEW_USER_BONUS_AMOUNT)}*\n"
-                f"💰 *Wallet Balance:* *{format_amount(wallet['balance'])}*"
-            ),
-            reply_markup=build_unlocked_keyboard(),
-            parse_mode="Markdown",
-        
-        )
+            await query.edit_message_text(
+                text=(
+                    "🆕 *New User Bonus*\n"
+                    f"Bonus Amount: *{format_amount(NEW_USER_BONUS_AMOUNT)}*\n"
+                    f"💰 *Wallet Balance:* *{format_amount(wallet['balance'])}*"
+                ),
+                reply_markup=build_unlocked_keyboard(),
+                parse_mode="Markdown",
+            )
+            
         
     elif data == "back_main":
         missing = await get_missing_channels(context, user_id)
